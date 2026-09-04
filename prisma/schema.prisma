@@ -1,0 +1,105 @@
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "mongodb"
+  url      = env("DATABASE_URL")
+}
+
+model Company {
+  id          String   @id @default(cuid()) @map("_id")
+  name        String
+  legalName   String
+  gstin       String?
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  invoices       Invoice[]
+  bills          Bill[]
+  bankLines      BankTransaction[]
+  chatMessages   ChatMessage[]
+}
+
+model Invoice {
+  id           String   @id @default(cuid()) @map("_id")
+  number       String   @unique
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id])
+  customerId   String
+  customerName String
+  issuedAt     DateTime
+  dueAt        DateTime
+  amountPaise  Int      // Stored in paise (₹1 = 100 paise)
+  taxPaise     Int      @default(0)
+  status       String   @default("OPEN") // OPEN, CLOSED, OVERDUE
+  
+  matches      ReconciliationMatch[]
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model Bill {
+  id          String   @id @default(cuid()) @map("_id")
+  number      String   @unique
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  vendorId    String
+  vendorName  String
+  issuedAt    DateTime
+  dueAt       DateTime
+  amountPaise Int      // Stored in paise (₹1 = 100 paise)
+  category    String
+  status      String   @default("OPEN")
+  
+  matches     ReconciliationMatch[]
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+}
+
+model BankTransaction {
+  id           String   @id @default(cuid()) @map("_id")
+  bankTxnId    String   @unique // External ID from the bank statement
+  companyId    String
+  company      Company  @relation(fields: [companyId], references: [id])
+  date         DateTime
+  amountPaise  Int      // Positive for inflow, negative for outflow
+  description  String
+  counterparty String?
+  accountType  String   @default("operating")
+  status       String   @default("UNMATCHED") // UNMATCHED, MATCHED, EXCEPTION
+  
+  matches      ReconciliationMatch[]
+  
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+}
+
+model ReconciliationMatch {
+  id                String   @id @default(cuid()) @map("_id")
+  
+  bankTransactionId String
+  bankTransaction   BankTransaction @relation(fields: [bankTransactionId], references: [id])
+  
+  invoiceId         String?
+  invoice           Invoice? @relation(fields: [invoiceId], references: [id])
+  
+  billId            String?
+  bill              Bill?    @relation(fields: [billId], references: [id])
+  
+  matchMethod       String   // e.g., "deterministic_exact", "agentic_fuzzy"
+  agentReasoning    String?
+  
+  createdAt         DateTime @default(now())
+}
+
+model ChatMessage {
+  id          String   @id @default(cuid()) @map("_id")
+  companyId   String
+  company     Company  @relation(fields: [companyId], references: [id])
+  role        String   // "user", "assistant", "system"
+  content     String
+  createdAt   DateTime @default(now())
+}
